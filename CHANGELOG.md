@@ -284,6 +284,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **code:** fix two `CodeAwareCompressor` AST-reassembly bugs: an exported JS/TS function or class (`export function foo() {`) produced a duplicated `export export` keyword and invalid syntax, because line-based node slicing (used to preserve indentation) pulled in the preceding `export` sibling's text on top of the `export_statement` handler's own prefix reconstruction. Separately, in every supported language, a doc comment immediately above a top-level function, class, or type was detached from its declaration during extraction and re-emitted in a cluster at the end of the compressed output instead of staying attached to what it documents.
 - * **proxy:** Buffered upstream responses containing a `server_tool_use` (or any other unrecognized Anthropic content block) no longer turn a fully-generated response into an HTTP 502. `StreamingMixin._response_to_sse` raised `ValueError` on unknown block types after the entire upstream generation had already been buffered, so a slow-but-successful response failed and the client retried the whole multi-minute request. Unknown blocks are now emitted verbatim in `content_block_start` (following the existing redacted_thinking` pattern), so `server_tool_use`, `server_tool_result`, `mcp_tool_use`, and future block types round-trip ([#1806](https://github.com/headroomlabs-ai/headroom/issues/1806)).
 
+## [0.42.1](https://github.com/headroomlabs-ai/headroom/compare/v0.42.0...v0.42.1) (2026-10-28)
+
+
+### Dependencies
+
+* Bump the npm-minor-patch group across 2 directories with 14 updates ([#4455](https://github.com/headroomlabs-ai/headroom/issues/4455)) ([f10725e](https://github.com/headroomlabs-ai/headroom/commit/f10725e6b9940d8bc2fcde950c86f8ac97543cb6))
+* Bump the npm-minor-patch group across 3 directories with 9 updates ([#4495](https://github.com/headroomlabs-ai/headroom/issues/4495)) ([f367728](https://github.com/headroomlabs-ai/headroom/commit/f36772805178e3fed1a95313e8211c57a291b953))
+
 ## [0.42.0](https://github.com/headroomlabs-ai/headroom/compare/v0.41.0...v0.42.0) (2026-10-26)
 
 
