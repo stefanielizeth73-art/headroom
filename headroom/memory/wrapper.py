@@ -27,6 +27,23 @@ from headroom.memory.models import Memory
 logger = logging.getLogger(__name__)
 
 
+def _user_text(content: object) -> str | None:
+    """Read searchable text without stringifying media or malformed content."""
+    if isinstance(content, str):
+        return content
+    if not isinstance(content, list):
+        return None
+    text = []
+    for block in content:
+        if not isinstance(block, dict) or not isinstance(block.get("type"), str):
+            return None
+        if block["type"] == "text":
+            if not isinstance(block.get("text"), str):
+                return None
+            text.append(block["text"])
+    return "\n".join(text)
+
+
 class MemoryWrapper:
     """Wraps an LLM client to add automatic memory with zero extra latency.
 
@@ -134,7 +151,7 @@ class MemoryWrapper:
         user_content = None
         for msg in reversed(messages):
             if msg.get("role") == "user":
-                user_content = msg.get("content", "")
+                user_content = _user_text(msg.get("content", ""))
                 break
 
         if not user_content:
@@ -145,7 +162,7 @@ class MemoryWrapper:
         try:
             memories = loop.run_until_complete(
                 self._memory.search(
-                    query=str(user_content),
+                    query=user_content,
                     user_id=self._user_id,
                     session_id=self._session_id,
                     top_k=self._top_k,
@@ -169,7 +186,17 @@ class MemoryWrapper:
         for msg in new_messages:
             if msg.get("role") == "user":
                 original = msg.get("content", "")
-                msg["content"] = f"{context_block}\n\n{original}"
+                if _user_text(original) is None:
+                    return messages
+                if isinstance(original, str):
+                    msg["content"] = f"{context_block}\n\n{original}"
+                elif isinstance(original, list):
+                    msg["content"] = [
+                        {"type": "text", "text": f"{context_block}\n\n"},
+                        *original,
+                    ]
+                else:
+                    return messages
                 break
 
         return new_messages

@@ -145,6 +145,71 @@ def test_store_memories_persists_only_nonempty_content() -> None:
     ]
 
 
+def test_inject_memories_preserves_multimodal_content_and_searches_only_text() -> None:
+    client, _response = make_client()
+    memory = FakeMemory()
+    memory.search_results = [SimpleNamespace(memory=SimpleNamespace(content="Prefers Python"))]
+    wrapper = MemoryWrapper(client, user_id="alice", _memory=memory)
+    content = [
+        {"type": "text", "text": "What is in this picture?"},
+        {"type": "image_url", "image_url": {"url": "data:image/png;base64,opaque-image"}},
+        {"type": "text", "text": "Explain the colors."},
+    ]
+    messages = [{"role": "user", "content": content}]
+
+    result = wrapper._inject_memories(messages)
+
+    assert result[0]["content"] == [
+        {"type": "text", "text": "<context>\n- Prefers Python\n</context>\n\n"},
+        *content,
+    ]
+    assert memory.last_search["query"] == "What is in this picture?\nExplain the colors."
+    assert messages == [{"role": "user", "content": content}]
+    assert result[0]["content"][1] is not content[0]
+
+
+def test_inject_memories_preserves_earlier_multimodal_turn() -> None:
+    client, _response = make_client()
+    memory = FakeMemory()
+    memory.search_results = [SimpleNamespace(memory=SimpleNamespace(content="Prefers Python"))]
+    wrapper = MemoryWrapper(client, user_id="alice", _memory=memory)
+    content = [{"type": "input_audio", "input_audio": {"data": "opaque-audio", "format": "wav"}}]
+    messages = [
+        {"role": "user", "content": content},
+        {"role": "assistant", "content": "I heard it."},
+        {"role": "user", "content": "Explain that sound."},
+    ]
+
+    result = wrapper._inject_memories(messages)
+
+    assert result[0]["content"][1:] == content
+    assert result[0]["content"][0]["type"] == "text"
+    assert result[1:] == messages[1:]
+    assert messages[0]["content"] == content
+    assert memory.last_search["query"] == "Explain that sound."
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        [{"type": "image_url", "image_url": {"url": "https://example.invalid/image.png"}}],
+        [{"type": "text", "text": None}, None, "malformed"],
+        [{"type": "text", "text": "valid text"}, None],
+        {"type": "text", "text": "not a content array"},
+        42,
+    ],
+)
+def test_inject_memories_does_not_search_nontext_payloads(content: object) -> None:
+    client, _response = make_client()
+    memory = FakeMemory()
+    memory.search_results = [SimpleNamespace(memory=SimpleNamespace(content="Prefers Python"))]
+    wrapper = MemoryWrapper(client, user_id="alice", _memory=memory)
+    messages = [{"role": "user", "content": content}]
+
+    assert wrapper._inject_memories(messages) is messages
+    assert not hasattr(memory, "last_search")
+
+
 def test_wrapped_completions_create_injects_parses_and_stores(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
